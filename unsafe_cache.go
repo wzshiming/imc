@@ -69,6 +69,11 @@ func (c *UnsafeCache[K, T]) Len() int {
 	return len(c.data)
 }
 
+// NextExpiry returns the next expiry time in Unix timestamp format.
+func (c *UnsafeCache[K, T]) NextExpiry() int64 {
+	return c.nextExpiry
+}
+
 // Evict removes expired items from the cache.
 // The yield function, if provided, is called for each evicted item.
 // If yield returns false, eviction stops.

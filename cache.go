@@ -1,6 +1,7 @@
 package imc
 
 import (
+	"context"
 	"sync"
 	"time"
 )
@@ -51,6 +52,43 @@ func (c *Cache[K, T]) Len() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.cache.Len()
+}
+
+// RunEvict removes expired items from the cache persistently.
+func (c *Cache[K, T]) RunEvict(ctx context.Context, yield func(key K, value T) bool) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		t := c.NextExpiry()
+		if t <= 1 {
+			ticker.Reset(time.Second)
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+			continue
+		}
+		e := time.Unix(t, 0)
+		now := nowFunc()
+
+		ticker.Reset(max(e.Sub(now), time.Second))
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		c.Evict(yield)
+	}
+}
+
+// NextExpiry returns the next expiry time in Unix timestamp format.
+func (c *Cache[K, T]) NextExpiry() int64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.cache.NextExpiry()
 }
 
 // Evict removes expired items from the cache
